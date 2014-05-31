@@ -80,7 +80,7 @@ clean:
 
 .PHONY: backup
 backup: release
-	git commit -a -m "$(shell cat ~/lnz/workingon.txt)" || true
+	git commit -a -m "$(shell cat ~/lnz2/workingon.txt)" || true
 
 .PHONY: depend
 depend:
