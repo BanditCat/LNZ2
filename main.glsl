@@ -65,12 +65,12 @@ void main( void ){
     spos.xy *= 0.5;
     spos.xy += 0.5;
     
-    if( spos.z > 0.0 && spos.z < 3 &&
+    if( spos.z > 0.0 && spos.z < 1 &&
 	spos.x >= 0 && spos.x < 1 &&
 	spos.y >= 0 && spos.y < 1 ){
       // BUGBUG need to scale by pixel size.
-      float amp = spos.z * spos.z;
-      float r = 0.33 * sqrt( 3 * amp / 3.141592653589793238462643383 );
+      float amp = spos.z * spos.z * 10;
+      float r = sqrt( 3 * amp / 3.141592653589793238462643383 );
       int xs = int( spos.x * screen.x - r );
       if( xs < 0 )
 	xs = 0;
@@ -100,8 +100,8 @@ void main( void ){
 	  dst /= screen.xy;
 	  dst -= spos.xy;
 	  dst *= screen.xy;
-	  //	  float v = amp
-	  //	    * ( clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / r, 0, 1 ) / tot ) +
+	  float b = amp
+	    * ( clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / r, 0, 1 ) / tot );
 	  //	    imageLoad( gbuffer, x + y * int( screen.x ) ).y; 
 	  //	  imageStore( gbuffer, x + y * int( screen.x ), 
 	  //	      vec4( 0, v, 0, 0 ) );
@@ -128,7 +128,7 @@ void main( void ){
 	  uint intensity = v & 4095;	
 
 	  //if( intensity + int( amp * 1000 ) < 4095 )
-	  uint dif = int( amp * 4095 );
+	  uint dif = int( round( b * 4095 ) );
 	  if( intensity + dif < 4095 )
 	    intensity += dif;
 	  else
@@ -139,7 +139,7 @@ void main( void ){
 	    float nhue = float( hue ) * 
 	      ( float( hcount - 1 ) / float( hcount ) ) +
 	      clamp( pos.w * 1023, 0, 1023 ) / float( hcount );
-	    hue = int( clamp( nhue, 0, 1023 ) );
+	    hue = int( round( clamp( nhue, 0, 1023 ) ) );
 	  }
 
 	  v = ( hcount << 22 ) + ( hue << 12 ) + intensity;

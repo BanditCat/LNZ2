@@ -87,6 +87,7 @@ void LNZReinit( int fullscreen, const char* windowTitle,
 				   SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
 				   SDL_WINDOW_INPUT_FOCUS |
 				   SDL_WINDOW_MOUSE_FOCUS |
+				   SDL_WINDOW_INPUT_GRABBED | 
 				   SDL_WINDOW_ALLOW_HIGHDPI );
   }
   if( mainWindow == NULL ){

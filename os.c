@@ -13,6 +13,7 @@
 
 // BUGBUG wish I could hide the soft keyboard here!
 void LNZOSReinit( void ){
+  SDL_SetRelativeMouseMode( 1 );
 }
 u8* LNZLoadResource( const char* name, u64* size ){
   HRSRC rsc;
