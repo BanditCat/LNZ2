@@ -1,10 +1,18 @@
+////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) Jonathan(Jon) DuBois 2014. This file is part of LNZ.         //
+////////////////////////////////////////////////////////////////////////////////
+
 // Main entry point.
 #include "lnz.h"
 #include <stdio.h>
 #include "math.h"
 
-#define PARTICLE_GROUPS 4096
+#define PARTICLE_GROUPS 1024
 #define PARTICLE_COUNT ( 1024 * PARTICLE_GROUPS )
+
+#define GBUFFER_WIDTH ( fullscreenDM.w )
+#define GBUFFER_HEIGHT ( fullscreenDM.h )
+#define GBUFFER_SIZE ( GBUFFER_HEIGHT * GBUFFER_WIDTH )
 
 int dwidth, dheight;
 float sfps = 30.0;
@@ -128,7 +136,7 @@ void mice( const SDL_Event* ev ){
 int main( int argc, char* argv[] ){
   (void)(argc);(void)(argv);
 
-  LNZInit( 1, "LNZ2.0a", 0.9, 0.675 );
+  LNZInit( 0, "LNZ2.0a", 0.9, 0.675 );
   SDL_GL_GetDrawableSize( mainWindow, &dwidth, &dheight );
   SDL_GL_SetSwapInterval( 0 );
   srand( 1337 );
@@ -143,17 +151,27 @@ int main( int argc, char* argv[] ){
   GLuint shd[ 2 ];
   shd[ 0 ] = LNZCompileOrDie( (char*)dt, GL_COMPUTE_SHADER );
   GLuint prg = LNZLinkOrDie( 1, shd );
-  dt = LNZLoadResourceOrDie( "frag.frag", &sz );
+  dt = LNZLoadResourceOrDie( "gbuffer.frag", &sz );
   shd[ 0 ] = LNZCompileOrDie( (char*)dt, GL_FRAGMENT_SHADER );
-  dt = LNZLoadResourceOrDie( "vert.vert", &sz );
+  dt = LNZLoadResourceOrDie( "gbuffer.vert", &sz );
   shd[ 1 ] = LNZCompileOrDie( (char*)dt, GL_VERTEX_SHADER );
-  GLuint fprg = LNZLinkOrDie( 2, shd );
-
+  GLuint bprg = LNZLinkOrDie( 2, shd );
+  
 
 
 
   // Generate two buffers, bind them and initialize their data stores
+  // 0 and 2 are position, 1 and 3 are velocity, 4 and 5 are gbuffers.
   GLuint buffers[ 4 ], texs[ 4 ];
+
+  GLuint screenQuadBuffer;
+  GLfloat screenQuad[ 8 ] = { -1, -1, 1, -1, 1, 1, -1, 1 };
+  glGenBuffers( 1, &screenQuadBuffer );
+  glBindBuffer( GL_ARRAY_BUFFER, screenQuadBuffer );
+  glBufferData( GL_ARRAY_BUFFER, 4 * sizeof( GLfloat ) * 2,
+		screenQuad, GL_STREAM_DRAW );
+  
+
   glGenBuffers( 4, buffers );
 
   glBindBuffer(GL_ARRAY_BUFFER, buffers[ 0 ] );
@@ -181,6 +199,7 @@ int main( int argc, char* argv[] ){
     velocities[ i * 4 + 3 ] = 0;
   }
   glUnmapBuffer( GL_ARRAY_BUFFER );
+
   for( u32 i = 2; i < 4; ++i ){
     glBindBuffer( GL_ARRAY_BUFFER, buffers[ i ] );
     glBufferData( GL_ARRAY_BUFFER, PARTICLE_COUNT * sizeof( GLfloat ) * 4,
@@ -200,26 +219,35 @@ int main( int argc, char* argv[] ){
 		GL_DYNAMIC_COPY );
   
 
-  GLuint vao[ 2 ]; 
-  glGenVertexArrays( 2, vao );
-  glBindVertexArray( vao[ 1 ] );
-  glBindBuffer( GL_ARRAY_BUFFER, buffers[ 2 ] );
-  glBindAttribLocation( fprg, 0, "vPosition" );
-  glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0 );
+  GLuint screenQuadVao;
+  glGenVertexArrays( 1, &screenQuadVao );
+  glBindVertexArray( screenQuadVao );
+  glBindBuffer( GL_ARRAY_BUFFER, screenQuadBuffer );
+  glBindAttribLocation( bprg, 0, "vPosition" );
+  glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0 );
   glEnableVertexAttribArray( 0 );
-  glBindVertexArray( vao[ 0 ] );
-  glBindBuffer( GL_ARRAY_BUFFER, buffers[ 0 ] );
-  glBindAttribLocation( fprg, 0, "vPosition" );
-  glVertexAttribPointer( 0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0 );
-  glEnableVertexAttribArray( 0 );
-  glBindVertexArray( 0 );
+
   
-  glEnable( GL_PROGRAM_POINT_SIZE );
+  GLuint ssbo[ 2 ];
+  glGenBuffers( 2, ssbo );
+  // BUGBUG remove old shaders
+  for( u32 i = 0; i < 2; ++i ){
+    glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ i ] );
+    glBufferData( GL_SHADER_STORAGE_BUFFER, GBUFFER_SIZE * 2 * sizeof( GLuint ),
+		  NULL, GL_DYNAMIC_DRAW );
+  }
+
+  //glEnable( GL_PROGRAM_POINT_SIZE );
+  //  glEnable( GL_BLEND );
+  //  glBlendFunc( GL_ONE, GL_ONE );
 
   double time = 0;
   u64 ntime = SDL_GetPerformanceCounter();
   GLuint dtloc = glGetUniformLocation( prg, "dt" );
-  GLuint mvploc = glGetUniformLocation( fprg, "mvp" );
+  //  GLuint mvploc = glGetUniformLocation( fprg, "mvp" );
+  GLuint smvploc = glGetUniformLocation( prg, "mvp" );
+  GLuint bscreenloc = glGetUniformLocation( bprg, "screen" );
+  GLuint screenloc = glGetUniformLocation( prg, "screen" );
   GLfloat amasses[ 64 ];
   int bsel = 0, nbsel = 2;
 
@@ -228,8 +256,13 @@ int main( int argc, char* argv[] ){
   while( 1 ){
     //    double b = rand() / (double)RAND_MAX;
     LNZLoop();
-    if( glGetError() != GL_NO_ERROR )
-      exit( 42 );
+    {
+      GLuint er = glGetError();
+      if( er != GL_NO_ERROR ){
+	printf( "\n\naduhoaduhoa   %x\n\n", er );
+	exit( 42 );
+      }
+    }
     u64 ttime = ntime;
     ntime = SDL_GetPerformanceCounter();
     float dtime = ( ntime - ttime ) / (double)SDL_GetPerformanceFrequency();
@@ -257,36 +290,16 @@ int main( int argc, char* argv[] ){
       attractors[ 1 ] = 10;
       attractors[ 3 ] = 16.15;
     }
-    glUnmapBuffer(GL_UNIFORM_BUFFER);
+    glUnmapBuffer( GL_UNIFORM_BUFFER );
     glBindBufferBase( GL_UNIFORM_BUFFER, 0, ubuf );
 
-    // Activate the compute program and bind the position
-    // and velocity buffers
-    glUseProgram(prg);
-
-    glBindImageTexture(0, texs[ 1 + bsel ], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-    glBindImageTexture(1, texs[ 0 + bsel ], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-    glBindImageTexture(2, texs[ 1 + nbsel ], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-    glBindImageTexture(3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-    // Set delta time
     
-    glUniform1f(dtloc, dtime * 20);
-    // Dispatch the compute shader
-    if( scale )
-      glDispatchCompute(PARTICLE_GROUPS, 1, 1);
-    // Ensure that writes by the compute shader have completed
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    // Set up our mvp matrix for viewing
-   
-    // Clear, select the rendering program and draw a full screen quad
-    glClearColor( 0.0, 0.0, 0.0, 1.0 );
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(fprg);
+
     {
       lmat mvp;
       rotx += udtime * drotx * 2;
       roty += udtime * droty * 2;
-      // lmprojection( mvp, 90 )
+
       float aspect = sqrt( dwidth / (double)dheight );
       lvec sc = { 0.013 / aspect, 0.013 * aspect, 0.13 };
       lvec up = { cosf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ), cosf( roty * 5 ), sinf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ) };
@@ -297,20 +310,58 @@ int main( int argc, char* argv[] ){
       lmtranslate( mvp, trns );
       lmprojection( mvp, 0.0125 );
       lmscale( mvp, sc );
-      glUniformMatrix4fv(mvploc, 1, GL_FALSE, mvp);
+      
+      glUseProgram( prg );
+      glBindImageTexture( 0, texs[ 1 + bsel ], 0, GL_FALSE, 0,
+			  GL_READ_ONLY, GL_RGBA32F );
+      glBindImageTexture( 1, texs[ 0 + bsel ], 0, GL_FALSE, 0, 
+			  GL_READ_ONLY, GL_RGBA32F );
+      glBindImageTexture( 2, texs[ 1 + nbsel ], 0, GL_FALSE, 0, 
+			  GL_WRITE_ONLY, GL_RGBA32F );
+      glBindImageTexture( 3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, 
+			  GL_WRITE_ONLY, GL_RGBA32F );
+    
+      glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ bsel / 2 ],
+			 0, dwidth * dheight * 2 * sizeof( GLuint ) );
+      glClearBufferData( GL_SHADER_STORAGE_BUFFER, GL_RGBA32UI, GL_RGBA, 
+			 GL_UNSIGNED_INT, NULL ); 
+
+      glUniform1f(dtloc, dtime * 20);
+      glUniform4f( screenloc, dwidth, dheight, 0, 0);
+      glUniformMatrix4fv( smvploc, 1, GL_FALSE, mvp );
+
+      glDispatchCompute(PARTICLE_GROUPS, 1, 1);
+      glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, 0 );
+
+      //glClearColor( 0.0, 0.0, 0.0, 1.0 );
+      //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      
+      
+      // Render quad.
+      glUseProgram( bprg );
+      glUniform4f( bscreenloc, dwidth, dheight, 0, 0);
+      glBindVertexArray( screenQuadVao );
+      glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ bsel / 2 ],
+			 0, dwidth * dheight * 2 * sizeof( GLuint ) );
+      glDrawArrays( GL_TRIANGLE_FAN, 0, 4 );
+      glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, 0);
+      
+
+      //glUseProgram( fprg );
+      //glUniformMatrix4fv( mvploc, 1, GL_FALSE, mvp );
     }
-    glBindVertexArray( vao[ bsel / 2 ] );
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE);
-    glDrawArrays(GL_POINTS, 0, PARTICLE_COUNT);
+    //glBindVertexArray( vao[ bsel / 2 ] );
+    //    glDrawArrays(GL_POINTS, 0, PARTICLE_COUNT);
     SDL_GL_SwapWindow( mainWindow );
-    if( bsel ){
-      bsel = 0;
-      nbsel = 2;
-    } else{
-      bsel = 2;
-      nbsel = 0;
-    }
+    //if( scale ){
+      if( bsel ){
+	bsel = 0;
+	nbsel = 2;
+      } else{
+	bsel = 2;
+	nbsel = 0;
+      }
+      //}
   }
   exit( EXIT_SUCCESS );
 }

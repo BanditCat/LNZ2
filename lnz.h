@@ -1,3 +1,7 @@
+////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) Jonathan(Jon) DuBois 2014. This file is part of LNZ.         //
+////////////////////////////////////////////////////////////////////////////////
+
 // LNZ main header.
 
 #ifndef LNZ_H
@@ -48,7 +52,7 @@ typedef double f64;
 #error Alien build envioronment, check vislib.h for correct typedefs.
 #endif 
 
-#define pi 3.141527
+#define pi 3.1415926535897932384626433832795028841971693993751058209749445923078
 
 // Desktop display mode on display 0 is used as the basis for fullscreen mode.
 SDL_DisplayMode fullscreenDM;
@@ -63,7 +67,7 @@ void LNZInit( int fullscreen, const char* windowTitle,
 // Reinitializes or dies.
 void LNZReinit( int fullscreen, const char* windowTitle,
 		double windowedWidth, double windowedHeight );
-// OS deoendant init.
+// OS dependent init.
 void LNZOSReinit( void );
 
 void LNZQuit( void );
@@ -72,7 +76,7 @@ void LNZQuit( void );
 void LNZLoop( void );
 
 // Sets the function that gets called for SDL_KEYDOWN and UP events.
-void LNZSetKeyHandler( void (*)( const SDL_Event* ) );
+void LNZSetKeyHandler( void(*)( const SDL_Event* ) );
 void LNZSetTouchHandler( void(*)( const SDL_Event* ) );
 void LNZSetMouseHandler( void(*)( const SDL_Event* ) );
 void LNZSetWindowHandler( void(*)( const SDL_Event* ) );

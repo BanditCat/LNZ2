@@ -1,1 +1,1 @@
-LNZ2.0a Particle sim with GPU and CPU parrelelism. Initial commit.
+LNZ2.0a OpenGL compute particle shader initial commit.
