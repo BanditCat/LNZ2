@@ -14,6 +14,7 @@ layout( rgba32f, binding = 0 ) uniform imageBuffer vbuffer;
 layout( rgba32f, binding = 1 ) uniform imageBuffer pbuffer;
 layout( rgba32f, binding = 2 ) uniform imageBuffer vbuffer_out; 
 layout( rgba32f, binding = 3 ) uniform imageBuffer pbuffer_out;
+layout( r32ui, binding = 4 ) uniform uimageBuffer gbuffer;
 
 layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
@@ -110,6 +111,12 @@ void main( void ){
 	  int ax = x / 2;
 	  int ay = y / 2;
 	  int sel = ( y % 2 ) * 2 + x % 2;
+
+	  uint foo = imageLoad( gbuffer, x + y * int( screen.x ) ).x;
+	  
+
+
+
 	  uint v;
 	  switch( sel ){
 	  case 0:

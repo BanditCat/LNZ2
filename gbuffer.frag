@@ -5,6 +5,8 @@
 #version 430 core
 layout( location = 0 ) out vec4 color;
 
+layout( r32ui, binding = 4 ) uniform uimageBuffer gbuffer;
+
 layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
 };

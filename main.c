@@ -162,7 +162,7 @@ int main( int argc, char* argv[] ){
 
   // Generate two buffers, bind them and initialize their data stores
   // 0 and 2 are position, 1 and 3 are velocity, 4 and 5 are gbuffers.
-  GLuint buffers[ 4 ], texs[ 4 ];
+  GLuint buffers[ 6 ], texs[ 6 ];
 
   GLuint screenQuadBuffer;
   GLfloat screenQuad[ 8 ] = { -1, -1, 1, -1, 1, 1, -1, 1 };
@@ -172,7 +172,7 @@ int main( int argc, char* argv[] ){
 		screenQuad, GL_STREAM_DRAW );
   
 
-  glGenBuffers( 4, buffers );
+  glGenBuffers( 6, buffers );
 
   glBindBuffer(GL_ARRAY_BUFFER, buffers[ 0 ] );
   glBufferData(GL_ARRAY_BUFFER, PARTICLE_COUNT * sizeof( GLfloat ) * 4,
@@ -205,11 +205,20 @@ int main( int argc, char* argv[] ){
     glBufferData( GL_ARRAY_BUFFER, PARTICLE_COUNT * sizeof( GLfloat ) * 4,
 		  NULL, GL_DYNAMIC_COPY );
   }
+  for( u32 i = 4; i < 6; ++i ){
+    glBindBuffer( GL_ARRAY_BUFFER, buffers[ i ] );
+    glBufferData( GL_ARRAY_BUFFER, GBUFFER_SIZE * sizeof( GLuint ),
+		  NULL, GL_DYNAMIC_COPY );
+  }
 
-  glGenTextures( 4, texs );
+  glGenTextures( 6, texs );
   for( u32 i = 0; i < 4; ++i ){
     glBindTexture( GL_TEXTURE_BUFFER, texs[ i ] );
     glTexBuffer( GL_TEXTURE_BUFFER, GL_RGBA32F, buffers[ i ] );
+  }
+  for( u32 i = 4; i < 6; ++i ){
+    glBindTexture( GL_TEXTURE_BUFFER, texs[ i ] );
+    glTexBuffer( GL_TEXTURE_BUFFER, GL_R32UI, buffers[ i ] );
   }
 
   GLuint ubuf;
@@ -320,6 +329,8 @@ int main( int argc, char* argv[] ){
 			  GL_WRITE_ONLY, GL_RGBA32F );
       glBindImageTexture( 3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, 
 			  GL_WRITE_ONLY, GL_RGBA32F );
+      glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
+			  GL_READ_WRITE, GL_R32UI );
     
       glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ bsel / 2 ],
 			 0, dwidth * dheight * 2 * sizeof( GLuint ) );
