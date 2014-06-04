@@ -15,7 +15,7 @@ layout( rgba32f, binding = 1 ) uniform imageBuffer pbuffer;
 layout( rgba32f, binding = 2 ) uniform imageBuffer vbuffer_out; 
 layout( rgba32f, binding = 3 ) uniform imageBuffer pbuffer_out;
 
-layout( std140, binding = 5 ) buffer ssbo{
+layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
 };
 
@@ -64,6 +64,8 @@ void main( void ){
     spos /= spos.w;
     spos.xy *= 0.5;
     spos.xy += 0.5;
+    
+    
     
     if( spos.z > 0.0 && spos.z < 1 &&
 	spos.x >= 0 && spos.x < 1 &&
@@ -128,7 +130,7 @@ void main( void ){
 	  uint intensity = v & 4095;	
 
 	  //if( intensity + int( amp * 1000 ) < 4095 )
-	  uint dif = int( round( b * 4095 ) );
+	  uint dif = int( round( b * clamp( hue * 7 / 1023, 0, 1 ) * 4095 ) );
 	  if( intensity + dif < 4095 )
 	    intensity += dif;
 	  else

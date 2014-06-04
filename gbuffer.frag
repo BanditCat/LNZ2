@@ -5,7 +5,7 @@
 #version 430 core
 layout( location = 0 ) out vec4 color;
 
-layout( std140, binding = 5 ) buffer ssbo{
+layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
 };
 
