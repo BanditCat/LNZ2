@@ -19,7 +19,7 @@ BEGIN
     BLOCK "040904E4"
     BEGIN
       VALUE "CompanyName", "Jon DuBois"
-      VALUE "FileDescription", "LNZ functional programming language."
+      VALUE "FileDescription", "LNZ"
       VALUE "FileVersion", "2.1a"
       VALUE "InternalName", "LNZ2.1a"
       VALUE "LegalCopyright", "Copyright 2014 Jon DuBois"

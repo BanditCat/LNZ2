@@ -14,7 +14,7 @@ layout( rgba32f, binding = 0 ) uniform imageBuffer vbuffer;
 layout( rgba32f, binding = 1 ) uniform imageBuffer pbuffer;
 layout( rgba32f, binding = 2 ) uniform imageBuffer vbuffer_out; 
 layout( rgba32f, binding = 3 ) uniform imageBuffer pbuffer_out;
-layout( r32ui, binding = 4 ) uniform uimageBuffer gbuffer;
+layout( r32ui, binding = 4 ) coherent uniform uimageBuffer gbuffer;
 
 layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
@@ -37,18 +37,17 @@ void main( void ){
   pos.w -= 0.004 * dt;
 
   // Loop for hi res
-  //  for( c = 0; c < 2; ++c ){
+  float m = 1;
+  for( c = 0; c < int( m ); ++c ){
     for( i = 0; i < 64; i++ ){ 
       vec3 dist = ( attractor[ i ].xyz - pos.xyz ) * 0.7; 
-      vec3 accl = dt * 0.075 * attractor[ i ].w * 
+      vec3 accl = dt * ( 1.0 / m ) * 0.06 * attractor[ i ].w * 
     	normalize(dist) / dot( dist, dist );
-      //      accl = clamp( accl, vec3( -0.7 ), vec3( 0.7 ) );
+
       vel.xyz += accl;
     }
-    //  }
-  //if( length( vel.xyz ) > 1.5 )
-    //  vel.xyz = normalize(vel.xyz) * 1. 5;
-  // If the particle expires, reset it 
+  }
+
   if( pos.w <= 0.0 ){ 
     pos.w += 1.0f; 
     vel.xyz *= 0.01;
@@ -58,7 +57,17 @@ void main( void ){
   imageStore( pbuffer_out, int( gl_GlobalInvocationID.x ), pos );
   imageStore( vbuffer_out, int( gl_GlobalInvocationID.x ), vel );
 
-  {
+  // clear our section of the gbuffer.
+  int start = int( gl_GlobalInvocationID.x * screen.w / ( gl_NumWorkGroups.x * gl_WorkGroupSize.x ) );
+  int end = int( ( gl_GlobalInvocationID.x + 1.0 ) * screen.w / ( gl_NumWorkGroups.x * gl_WorkGroupSize.x ) );
+  if( end > start )
+    for( i = start; i < end; ++i )
+      imageStore( gbuffer, i, uvec4( 0 ) );
+  
+  memoryBarrier();
+  barrier();
+  
+  {    
     vec4 spos = pos;
     spos.w = 1;
     spos = ( spos * mvp );
@@ -71,30 +80,28 @@ void main( void ){
     if( spos.z > 0.0 && spos.z < 1 &&
 	spos.x >= 0 && spos.x < 1 &&
 	spos.y >= 0 && spos.y < 1 ){
-      // BUGBUG need to scale by pixel size.
-      float amp = spos.z * spos.z * 10;
-      float r = sqrt( 3 * amp / 3.141592653589793238462643383 );
-      int xs = int( spos.x * screen.x - r );
+      float amp = spos.z * spos.z * screen.z;
+      float rad = sqrt( 3.0 * amp / 3.141592 );
+      int xs = int( spos.x * screen.x - rad );
       if( xs < 0 )
 	xs = 0;
-      int xe = int( spos.x * screen.x + r );
+      int xe = int( spos.x * screen.x + rad );
       if( xe >= screen.x )
 	xe = int( screen.x ) - 1;
-      int ys = int( spos.y * screen.y - r );
+      int ys = int( spos.y * screen.y - rad );
       if( ys < 0 )
 	ys = 0;
-      int ye = int( spos.y * screen.y + r );
+      int ye = int( spos.y * screen.y + rad );
       if( ye >= screen.y )
 	ye = int( screen.y ) - 1;
       float tot = 0;
-      //      xs = xe = int( xs + r ); ys = ye = int( ys + r );
       for( int x = xs; x <= xe; ++x ){
 	for( int y = ys; y <= ye; ++y ){
 	  vec2 dst = { x, y };
 	  dst /= screen.xy;
 	  dst -= spos.xy;
 	  dst *= screen.xy;
-	  tot += clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / r, 0, 1 );
+	  tot += clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / rad, 0, 1 );
 	}
       }
       for( int x = xs; x <= xe; ++x ){
@@ -104,75 +111,41 @@ void main( void ){
 	  dst -= spos.xy;
 	  dst *= screen.xy;
 	  float b = amp
-	    * ( clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / r, 0, 1 ) / tot );
-	  //	    imageLoad( gbuffer, x + y * int( screen.x ) ).y; 
-	  //	  imageStore( gbuffer, x + y * int( screen.x ), 
-	  //	      vec4( 0, v, 0, 0 ) );
-	  int ax = x / 2;
-	  int ay = y / 2;
-	  int sel = ( y % 2 ) * 2 + x % 2;
+	    * ( clamp( 1 - sqrt( dot( dst.xy, dst.xy ) ) / rad, 0, 1 ) /
+		tot );	 
 
-	  uint foo = imageLoad( gbuffer, x + y * int( screen.x ) ).x;
-	  
+	  bool wrote = false;
+	  while( !wrote ){
+	    uint v = imageLoad( gbuffer, x + y * int( screen.x ) ).x;
+	    uint ov = v;
+	    uint hcount = v >> 24;
+	    uint hue = ( v >> 12 ) & 4095;
+	    uint intensity = v & 4095;	
+	    
+	    uint dif = int( round( b * 4095.0 * clamp( pos.w * 10, 0, 1 ) ) );
+	    if( intensity + dif < 4095 )
+	      intensity += dif;
+	    else
+	      intensity = 4095;
+	    
+	    
+	    if( hcount < 63 ){
+	      hcount += 1;
+	      hue += int( clamp( pos.w * 64, 0, 63 ) );
+	    }
+	    
 
-
-
-	  uint v;
-	  switch( sel ){
-	  case 0:
-	    v = gb[ ax + ay * int( screen.x ) ].x;
-	    break;
-	  case 1:
-	    v = gb[ ax + ay * int( screen.x ) ].y;
-	    break;
-	  case 2:
-	    v = gb[ ax + ay * int( screen.x ) ].z;
-	    break;
-	  case 3:
-	    v = gb[ ax + ay * int( screen.x ) ].w;
-	    break;
-	  }
-	  uint hcount = v >> 22;
-	  uint hue = ( v >> 12 ) & 1023;
-	  uint intensity = v & 4095;	
-
-	  //if( intensity + int( amp * 1000 ) < 4095 )
-	  uint dif = int( round( b * clamp( hue * 7 / 1023, 0, 1 ) * 4095 ) );
-	  if( intensity + dif < 4095 )
-	    intensity += dif;
-	  else
-	    intensity = 4095;
+	    v = ( hcount << 24 ) + ( hue << 12 ) + intensity;
+	    
+	    uint w = imageAtomicCompSwap( gbuffer, 
+					  x + y * int( screen.x ), ov, v );
+	    if( w == ov )
+	      wrote = true;
   
-	  if( hcount < 1023 ){
-	    hcount += 1;
-	    float nhue = float( hue ) * 
-	      ( float( hcount - 1 ) / float( hcount ) ) +
-	      clamp( pos.w * 1023, 0, 1023 ) / float( hcount );
-	    hue = int( round( clamp( nhue, 0, 1023 ) ) );
 	  }
-
-	  v = ( hcount << 22 ) + ( hue << 12 ) + intensity;
-
-	  switch( sel ){
-	  case 0:
-	    gb[ ax + ay * int( screen.x ) ].x = v;
-	    break;
-	  case 1:
-	    gb[ ax + ay * int( screen.x ) ].y = v;
-	    break;
-	  case 2:
-	    gb[ ax + ay * int( screen.x ) ].z = v;
-	    break;
-	  case 3:
-	    gb[ ax + ay * int( screen.x ) ].w = v;
-	    break;
-	  }
-
-	  //	  gb[ x + y * int( screen.x ) ].w += 1;
 	}
       }
     }      
   }
-
 }
 

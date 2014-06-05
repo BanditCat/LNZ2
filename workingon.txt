@@ -1,1 +1,1 @@
-LNZ2.0a Proper atomic operations.
+LNZ2.0a LNZ Particle demo.

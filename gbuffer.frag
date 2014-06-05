@@ -5,7 +5,7 @@
 #version 430 core
 layout( location = 0 ) out vec4 color;
 
-layout( r32ui, binding = 4 ) uniform uimageBuffer gbuffer;
+layout( r32ui, binding = 4 ) coherent uniform uimageBuffer gbuffer;
 
 layout( std140, binding = 5 ) coherent buffer ssbo{
   uvec4 gb[];
@@ -15,34 +15,17 @@ uniform vec4 screen;
 
 void main(void) { 
   vec4 ans;
-  int ax = int( gl_FragCoord.x ) / 2;
-  int ay = int( gl_FragCoord.y ) / 2;
-  int sel = ( int( gl_FragCoord.y ) % 2 ) * 2 + int( gl_FragCoord.x ) % 2;
-  uint v;
-  switch( sel ){
-  case 0:
-    v = gb[ ax + ay * int( screen.x ) ].x;
-    break;
-  case 1:
-    v = gb[ ax + ay * int( screen.x ) ].y;
-     break;
-  case 2:
-    v = gb[ ax + ay * int( screen.x ) ].z;
-    break;
-  case 3:
-    v = gb[ ax + ay * int( screen.x ) ].w;
-    break;
-  }
-  uint hue = ( v >> 12 ) & 1023;
-  hue = hue + 512;
-  if( hue > 1023 )
-    hue -= 1024;
-  uint intensity = v & 4095;
+
+  uint v = imageLoad( gbuffer, int( gl_FragCoord.x ) + 
+		      int( gl_FragCoord.y ) * int( screen.x ) ).x;
+  uint hcount = v >> 24;
+  uint hue = int( clamp( ( float( ( v >> 12 ) & 4095 ) / float( hcount ) ) * ( 4095.0 / 63.0 ), 0, 4095 ) );
+  uint intensity = v & 4095; 
 
   float val = clamp( intensity * 0.00025, 0, 1 );
-  float sat = 0.5;
+  float sat = float( 63 - hcount ) / 63.0;
 
-  float h = ( hue * 6 / 1024 );
+  float h = ( float( hue ) * 6.0 / 4096.0 );
   int hs = int( floor( h ) );
   h -= hs;
   float p = val * ( 1 - sat );

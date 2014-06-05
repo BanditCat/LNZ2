@@ -7,13 +7,15 @@
 #include <stdio.h>
 #include "math.h"
 
-#define PARTICLE_GROUPS 1024
+#define PARTICLE_GROUPS 256
 #define PARTICLE_COUNT ( 1024 * PARTICLE_GROUPS )
 
 #define GBUFFER_WIDTH ( fullscreenDM.w )
 #define GBUFFER_HEIGHT ( fullscreenDM.h )
 #define GBUFFER_SIZE ( GBUFFER_HEIGHT * GBUFFER_WIDTH )
 
+
+int fullscreen = 0;
 int dwidth, dheight;
 float sfps = 30.0;
 float rotx = 0, roty = 0, drotx = 0, droty = 0;//`0.05, droty = 0.02;
@@ -44,6 +46,14 @@ void keys( const SDL_Event* ev ){
       scale = 0;
     else
       scale = 1;
+  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_RETURN ){
+    if( fullscreen ){
+      SDL_SetWindowFullscreen( mainWindow, 0 );
+      fullscreen = 0;
+    } else{
+      SDL_SetWindowFullscreen( mainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP );
+      fullscreen = 1;
+    }
   }
 }
 
@@ -107,6 +117,7 @@ void touches( const SDL_Event* ev ){
 }
 
 void wms( const SDL_Event* ev ){
+  disableMouseTime = SDL_GetPerformanceCounter();
   if( ev->window.event == SDL_WINDOWEVENT_RESIZED ){
     dwidth = ev->window.data1;
     dheight = ev->window.data2;
@@ -136,7 +147,7 @@ void mice( const SDL_Event* ev ){
 int main( int argc, char* argv[] ){
   (void)(argc);(void)(argv);
 
-  LNZInit( 0, "LNZ2.0a", 0.9, 0.675 );
+  LNZInit( fullscreen, "LNZ2.0a", 0.9, 0.675 );
   SDL_GL_GetDrawableSize( mainWindow, &dwidth, &dheight );
   SDL_GL_SetSwapInterval( 0 );
   srand( 1337 );
@@ -145,6 +156,7 @@ int main( int argc, char* argv[] ){
   LNZSetTouchHandler( touches );
   LNZSetMouseHandler( mice );
   LNZSetWindowHandler( wms );
+
 
   u64 sz;
   u8* dt = LNZLoadResourceOrDie( "main.glsl", &sz );
@@ -160,7 +172,6 @@ int main( int argc, char* argv[] ){
 
 
 
-  // Generate two buffers, bind them and initialize their data stores
   // 0 and 2 are position, 1 and 3 are velocity, 4 and 5 are gbuffers.
   GLuint buffers[ 6 ], texs[ 6 ];
 
@@ -177,22 +188,19 @@ int main( int argc, char* argv[] ){
   glBindBuffer(GL_ARRAY_BUFFER, buffers[ 0 ] );
   glBufferData(GL_ARRAY_BUFFER, PARTICLE_COUNT * sizeof( GLfloat ) * 4,
 	       NULL, GL_DYNAMIC_COPY );
-  // Map the position buffer and fill it with random vectors
-  GLfloat* positions = glMapBuffer( GL_ARRAY_BUFFER, GL_WRITE_ONLY );
 
+  // Randomize positions and velocities.
+  GLfloat* positions = glMapBuffer( GL_ARRAY_BUFFER, GL_WRITE_ONLY );
   for( u32 i = 0; i < PARTICLE_COUNT; ++i ){
     for( u32 k = 0; k < 3; ++k )
       positions[ i * 4 + k ] = ( rand() / (double)RAND_MAX ) * 20.0 - 10.0;
     positions[ i * 4 + 3 ] = rand() / (double)RAND_MAX;
   }
   glUnmapBuffer( GL_ARRAY_BUFFER );
-
   glBindBuffer(GL_ARRAY_BUFFER, buffers[ 1 ] );
   glBufferData(GL_ARRAY_BUFFER, PARTICLE_COUNT * sizeof( GLfloat ) * 4,
 	       NULL, GL_DYNAMIC_COPY );
-  // Map the position buffer and fill it with random vectors
   GLfloat* velocities = glMapBuffer( GL_ARRAY_BUFFER, GL_WRITE_ONLY );
-
   for( u32 i = 0; i < PARTICLE_COUNT; ++i ){
     for( u32 k = 0; k < 3; ++k )
       velocities[ i * 4 + k ] = ( rand() / (double)RAND_MAX ) * 0.2 - 0.1;
@@ -237,23 +245,9 @@ int main( int argc, char* argv[] ){
   glEnableVertexAttribArray( 0 );
 
   
-  GLuint ssbo[ 2 ];
-  glGenBuffers( 2, ssbo );
-  // BUGBUG remove old shaders
-  for( u32 i = 0; i < 2; ++i ){
-    glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ i ] );
-    glBufferData( GL_SHADER_STORAGE_BUFFER, GBUFFER_SIZE * 2 * sizeof( GLuint ),
-		  NULL, GL_DYNAMIC_DRAW );
-  }
-
-  //glEnable( GL_PROGRAM_POINT_SIZE );
-  //  glEnable( GL_BLEND );
-  //  glBlendFunc( GL_ONE, GL_ONE );
-
   double time = 0;
   u64 ntime = SDL_GetPerformanceCounter();
   GLuint dtloc = glGetUniformLocation( prg, "dt" );
-  //  GLuint mvploc = glGetUniformLocation( fprg, "mvp" );
   GLuint smvploc = glGetUniformLocation( prg, "mvp" );
   GLuint bscreenloc = glGetUniformLocation( bprg, "screen" );
   GLuint screenloc = glGetUniformLocation( prg, "screen" );
@@ -263,12 +257,11 @@ int main( int argc, char* argv[] ){
   for( u32 i = 0; i < 64; ++i )
     amasses[ i ] = rand() / (double)RAND_MAX + 1;
   while( 1 ){
-    //    double b = rand() / (double)RAND_MAX;
     LNZLoop();
     {
       GLuint er = glGetError();
       if( er != GL_NO_ERROR ){
-	printf( "\n\naduhoaduhoa   %x\n\n", er );
+	printf( "\n\nOpenGL Error Number %x!\n\n", er );
 	exit( 42 );
       }
     }
@@ -302,16 +295,16 @@ int main( int argc, char* argv[] ){
     glUnmapBuffer( GL_UNIFORM_BUFFER );
     glBindBufferBase( GL_UNIFORM_BUFFER, 0, ubuf );
 
+    rotx += udtime * drotx * 2;
+    roty += udtime * droty * 2;
     
-
+    lmat mvp;    
     {
-      lmat mvp;
-      rotx += udtime * drotx * 2;
-      roty += udtime * droty * 2;
-
       float aspect = sqrt( dwidth / (double)dheight );
       lvec sc = { 0.013 / aspect, 0.013 * aspect, 0.13 };
-      lvec up = { cosf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ), cosf( roty * 5 ), sinf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ) };
+      lvec up = { cosf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ), 
+		  cosf( roty * 5 ), 
+		  sinf( rotx * 5 + pi / 2 ) * sinf( roty * 5 ) };
       lvec right = { cosf( rotx * 5 ), 0.0, sinf( rotx * 5 ) };
 
       lmidentity( mvp );
@@ -319,60 +312,48 @@ int main( int argc, char* argv[] ){
       lmtranslate( mvp, trns );
       lmprojection( mvp, 0.0125 );
       lmscale( mvp, sc );
-      
-      glUseProgram( prg );
-      glBindImageTexture( 0, texs[ 1 + bsel ], 0, GL_FALSE, 0,
-			  GL_READ_ONLY, GL_RGBA32F );
-      glBindImageTexture( 1, texs[ 0 + bsel ], 0, GL_FALSE, 0, 
-			  GL_READ_ONLY, GL_RGBA32F );
-      glBindImageTexture( 2, texs[ 1 + nbsel ], 0, GL_FALSE, 0, 
-			  GL_WRITE_ONLY, GL_RGBA32F );
-      glBindImageTexture( 3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, 
-			  GL_WRITE_ONLY, GL_RGBA32F );
-      glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
-			  GL_READ_WRITE, GL_R32UI );
+    } 
+     
+    glUseProgram( prg );
+    glBindImageTexture( 0, texs[ 1 + bsel ], 0, GL_FALSE, 0,
+			GL_READ_ONLY, GL_RGBA32F );
+    glBindImageTexture( 1, texs[ 0 + bsel ], 0, GL_FALSE, 0, 
+			GL_READ_ONLY, GL_RGBA32F );
+    glBindImageTexture( 2, texs[ 1 + nbsel ], 0, GL_FALSE, 0, 
+			GL_WRITE_ONLY, GL_RGBA32F );
+    glBindImageTexture( 3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, 
+			GL_WRITE_ONLY, GL_RGBA32F );
     
-      glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ bsel / 2 ],
-			 0, dwidth * dheight * 2 * sizeof( GLuint ) );
-      glClearBufferData( GL_SHADER_STORAGE_BUFFER, GL_RGBA32UI, GL_RGBA, 
-			 GL_UNSIGNED_INT, NULL ); 
+    glBindBuffer( GL_ARRAY_BUFFER, buffers[ 4 + bsel / 2 ] );
+    glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
+			GL_READ_WRITE, GL_R32UI );
+    
+    glUniform1f( dtloc, dtime * 20 );
+    glUniform4f( screenloc, dwidth, dheight, 
+		 5.0 * ( 1024.0 * 1024.0 ) / PARTICLE_COUNT, 
+		 dwidth * dheight );
+    glUniformMatrix4fv( smvploc, 1, GL_FALSE, mvp );
+    
+    glDispatchCompute( PARTICLE_GROUPS, 1, 1 );
+    
+    
+    // Render quad.
+    glUseProgram( bprg );
+    glUniform4f( bscreenloc, dwidth, dheight, 0, 0);
+    glBindVertexArray( screenQuadVao );
+    glBindImageTexture( 4, texs[ 4 + nbsel / 2 ], 0, GL_FALSE, 0, 
+			GL_READ_WRITE, GL_R32UI );
+    glDrawArrays( GL_TRIANGLE_FAN, 0, 4 );
 
-      glUniform1f(dtloc, dtime * 20);
-      glUniform4f( screenloc, dwidth, dheight, 0, 0);
-      glUniformMatrix4fv( smvploc, 1, GL_FALSE, mvp );
-
-      glDispatchCompute(PARTICLE_GROUPS, 1, 1);
-      glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, 0 );
-
-      //glClearColor( 0.0, 0.0, 0.0, 1.0 );
-      //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-      
-      
-      // Render quad.
-      glUseProgram( bprg );
-      glUniform4f( bscreenloc, dwidth, dheight, 0, 0);
-      glBindVertexArray( screenQuadVao );
-      glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 5, ssbo[ bsel / 2 ],
-			 0, dwidth * dheight * 2 * sizeof( GLuint ) );
-      glDrawArrays( GL_TRIANGLE_FAN, 0, 4 );
-      glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 5, 0);
-      
-
-      //glUseProgram( fprg );
-      //glUniformMatrix4fv( mvploc, 1, GL_FALSE, mvp );
-    }
-    //glBindVertexArray( vao[ bsel / 2 ] );
-    //    glDrawArrays(GL_POINTS, 0, PARTICLE_COUNT);
     SDL_GL_SwapWindow( mainWindow );
-    //if( scale ){
-      if( bsel ){
-	bsel = 0;
-	nbsel = 2;
-      } else{
-	bsel = 2;
-	nbsel = 0;
-      }
-      //}
+
+    if( bsel ){
+      bsel = 0;
+      nbsel = 2;
+    } else{
+      bsel = 2;
+      nbsel = 0;
+    }
   }
   exit( EXIT_SUCCESS );
 }
