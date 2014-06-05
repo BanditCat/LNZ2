@@ -1,0 +1,2 @@
+Get text working.
+Do dynamic particle count, thread count etc.
