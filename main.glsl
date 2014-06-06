@@ -16,9 +16,6 @@ layout( rgba32f, binding = 2 ) uniform imageBuffer vbuffer_out;
 layout( rgba32f, binding = 3 ) uniform imageBuffer pbuffer_out;
 layout( r32ui, binding = 4 ) coherent uniform uimageBuffer gbuffer;
 
-layout( std140, binding = 5 ) coherent buffer ssbo{
-  uvec4 gb[];
-};
 
 // Time change per frame in seconds.
 uniform float dt;

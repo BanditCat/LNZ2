@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "math.h"
 
-#define PARTICLE_GROUPS 1024
+#define PARTICLE_GROUPS 512
 #define PARTICLE_COUNT ( 1024 * PARTICLE_GROUPS )
 
 #define GBUFFER_WIDTH ( fullscreenDM.w )
@@ -159,8 +159,8 @@ int main( int argc, char* argv[] ){
 
 
   u64 sz;
-  u8* dt = LNZLoadResourceOrDie( "main.glsl", &sz );
   GLuint shd[ 2 ];
+  u8* dt = LNZLoadResourceOrDie( "main.glsl", &sz );
   shd[ 0 ] = LNZCompileOrDie( (char*)dt, GL_COMPUTE_SHADER );
   GLuint prg = LNZLinkOrDie( 1, shd );
   dt = LNZLoadResourceOrDie( "gbuffer.frag", &sz );
@@ -168,6 +168,9 @@ int main( int argc, char* argv[] ){
   dt = LNZLoadResourceOrDie( "gbuffer.vert", &sz );
   shd[ 1 ] = LNZCompileOrDie( (char*)dt, GL_VERTEX_SHADER );
   GLuint bprg = LNZLinkOrDie( 2, shd );
+  dt = LNZLoadResourceOrDie( "init.glsl", &sz );
+  shd[ 0 ] = LNZCompileOrDie( (char*)dt, GL_COMPUTE_SHADER );
+  GLuint iprg = LNZLinkOrDie( 1, shd );
   
 
 
@@ -251,6 +254,7 @@ int main( int argc, char* argv[] ){
   GLuint smvploc = glGetUniformLocation( prg, "mvp" );
   GLuint bscreenloc = glGetUniformLocation( bprg, "screen" );
   GLuint screenloc = glGetUniformLocation( prg, "screen" );
+  GLuint gcountloc = glGetUniformLocation( iprg, "gcount" );
   GLfloat amasses[ 64 ];
   int bsel = 0, nbsel = 2;
 
@@ -313,6 +317,14 @@ int main( int argc, char* argv[] ){
       lmprojection( mvp, 0.0125 );
       lmscale( mvp, sc );
     } 
+
+    // Clear gbuffer. glClearBufferData is unreliable.
+    glUseProgram( iprg );
+    glBindImageTexture( 0, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0,
+			GL_WRITE_ONLY, GL_R32UI );
+    glUniform1ui( gcountloc, ( dwidth * dheight ) );
+    glDispatchCompute( ( dwidth * dheight ) / 1024 + 1, 1, 1 );
+
      
     glUseProgram( prg );
     glBindImageTexture( 0, texs[ 1 + bsel ], 0, GL_FALSE, 0,
@@ -324,10 +336,8 @@ int main( int argc, char* argv[] ){
     glBindImageTexture( 3, texs[ 0 + nbsel ], 0, GL_FALSE, 0, 
 			GL_WRITE_ONLY, GL_RGBA32F );
     
-    glBindBuffer( GL_ARRAY_BUFFER, buffers[ 4 + bsel / 2 ] );
     glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
 			GL_READ_WRITE, GL_R32UI );
-    glClearBufferData( GL_ARRAY_BUFFER, GL_R32UI, GL_RED, GL_FLOAT, NULL );
     
     glUniform1f( dtloc, dtime * 20 );
     glUniform4f( screenloc, dwidth, dheight, 

@@ -4,6 +4,7 @@
 
 101 ICON "bcj.ico"
 
+init.glsl RCDATA "init.glsl"
 main.glsl RCDATA "main.glsl"
 
 gbuffer.frag RCDATA "gbuffer.frag"
