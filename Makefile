@@ -64,9 +64,11 @@ clean:
 	rm -f ./*.o ./$(TARGET)
 
 .PHONY: backup
-backup: release
+backup: clean release
 	git add -A
 	git commit -a -m "$(shell cat ~/lnz2/workingon.txt)" || true
+	eval `ssh-agent`
+	git push -u origin master
 
 .PHONY: depend
 depend:
