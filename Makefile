@@ -67,7 +67,6 @@ clean:
 backup: release
 	git add -A
 	git commit -a -m "$(shell cat ~/lnz2/workingon.txt)" || true
-	git push -u origin master
 
 .PHONY: depend
 depend:

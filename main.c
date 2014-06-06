@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "math.h"
 
-#define PARTICLE_GROUPS 256
+#define PARTICLE_GROUPS 1024
 #define PARTICLE_COUNT ( 1024 * PARTICLE_GROUPS )
 
 #define GBUFFER_WIDTH ( fullscreenDM.w )
@@ -327,6 +327,7 @@ int main( int argc, char* argv[] ){
     glBindBuffer( GL_ARRAY_BUFFER, buffers[ 4 + bsel / 2 ] );
     glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
 			GL_READ_WRITE, GL_R32UI );
+    glClearBufferData( GL_ARRAY_BUFFER, GL_R32UI, GL_RED, GL_FLOAT, NULL );
     
     glUniform1f( dtloc, dtime * 20 );
     glUniform4f( screenloc, dwidth, dheight, 

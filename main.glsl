@@ -57,15 +57,6 @@ void main( void ){
   imageStore( pbuffer_out, int( gl_GlobalInvocationID.x ), pos );
   imageStore( vbuffer_out, int( gl_GlobalInvocationID.x ), vel );
 
-  // clear our section of the gbuffer.
-  int start = int( gl_GlobalInvocationID.x * screen.w / ( gl_NumWorkGroups.x * gl_WorkGroupSize.x ) );
-  int end = int( ( gl_GlobalInvocationID.x + 1.0 ) * screen.w / ( gl_NumWorkGroups.x * gl_WorkGroupSize.x ) );
-  if( end > start )
-    for( i = start; i < end; ++i )
-      imageStore( gbuffer, i, uvec4( 0 ) );
-  
-  memoryBarrier();
-  barrier();
   
   {    
     vec4 spos = pos;
