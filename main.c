@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "math.h"
 
-#define PARTICLE_GROUPS 512
+#define PARTICLE_GROUPS 256
 #define PARTICLE_COUNT ( 1024 * PARTICLE_GROUPS )
 
 #define GBUFFER_WIDTH ( fullscreenDM.w )
@@ -17,6 +17,7 @@
 
 int fullscreen = 0;
 int dwidth, dheight;
+int pixelSize = 1;
 float sfps = 30.0;
 float rotx = 0, roty = 0, drotx = 0, droty = 0;//`0.05, droty = 0.02;
 int rel = 0;
@@ -46,6 +47,12 @@ void keys( const SDL_Event* ev ){
       scale = 0;
     else
       scale = 1;
+  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_LEFTBRACKET ){
+    if( pixelSize > 1 )
+      pixelSize--;
+  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_RIGHTBRACKET ){
+    if( pixelSize < 100 )
+      pixelSize++;
   } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_RETURN ){
     if( fullscreen ){
       SDL_SetWindowFullscreen( mainWindow, 0 );
@@ -127,7 +134,11 @@ void wms( const SDL_Event* ev ){
 void mice( const SDL_Event* ev ){
   if( ev->type == SDL_MOUSEMOTION && 
       ( SDL_GetPerformanceCounter() - disableMouseTime ) /
-      (double)SDL_GetPerformanceFrequency() > 0.1 ){
+      (double)SDL_GetPerformanceFrequency() > 0.1 &&
+      // There is a bug where sdl gives a massive move event when moving the 
+      // window.
+      abs( ev->motion.xrel ) < 20 &&
+      abs( ev->motion.yrel ) < 20 ){
     if( ev->motion.state & SDL_BUTTON_LMASK ){
       trns[ 0 ] += ev->motion.xrel * 0.05;
       trns[ 1 ] += ev->motion.yrel * -0.05;
@@ -156,7 +167,6 @@ int main( int argc, char* argv[] ){
   LNZSetTouchHandler( touches );
   LNZSetMouseHandler( mice );
   LNZSetWindowHandler( wms );
-
 
   u64 sz;
   GLuint shd[ 2 ];
@@ -248,7 +258,7 @@ int main( int argc, char* argv[] ){
   glEnableVertexAttribArray( 0 );
 
   
-  double time = 0;
+  double time = rand();
   u64 ntime = SDL_GetPerformanceCounter();
   GLuint dtloc = glGetUniformLocation( prg, "dt" );
   GLuint smvploc = glGetUniformLocation( prg, "mvp" );
@@ -283,12 +293,12 @@ int main( int argc, char* argv[] ){
       (GLfloat*)glMapBuffer( GL_UNIFORM_BUFFER, GL_WRITE_ONLY );
 
     for( int i = 0; i < 64; i++ ){
-      attractors[ i * 4 + 0 ] =  sinf(time * (float)(i + 4) * 7.5f * 2.0f)
+      attractors[ i * 4 + 0 ] =  sinf(time * (float)(i + 4) * 7.5f * 0.2f)
       	* 50.0f;
-      attractors[ i * 4 + 1 ] = cosf(time * (float)(i + 7) * 3.9f * 2.0f)
+   attractors[ i * 4 + 1 ] = cosf(time * (float)(i + 7) * 3.9f * 0.2f)
       	* 50.0f;
-      attractors[ i * 4 + 2 ] = sinf(time * (float)(i + 3) * 5.3f * 2.0f)
-      	* cosf(time * (float)(i + 5) * 9.1f) * 100.0f;
+      attractors[ i * 4 + 2 ] = sinf(time * (float)(i + 3) * 5.3f * 0.2f)
+      	* cosf(time * (float)(i + 5) * 0.91f) * 100.0f;
       attractors[ i * 4 + 3 ] = amasses[ i ] * 15.0;
     }
     if( blowup ){
@@ -322,7 +332,7 @@ int main( int argc, char* argv[] ){
     glUseProgram( iprg );
     glBindImageTexture( 0, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0,
 			GL_WRITE_ONLY, GL_R32UI );
-    glUniform1ui( gcountloc, ( dwidth * dheight ) );
+    glUniform1ui( gcountloc, ( dwidth / pixelSize ) * ( dheight / pixelSize ) );
     glDispatchCompute( ( dwidth * dheight ) / 1024 + 1, 1, 1 );
 
      
@@ -340,9 +350,9 @@ int main( int argc, char* argv[] ){
 			GL_READ_WRITE, GL_R32UI );
     
     glUniform1f( dtloc, dtime * 20 );
-    glUniform4f( screenloc, dwidth, dheight, 
-		 5.0 * ( 1024.0 * 1024.0 ) / PARTICLE_COUNT, 
-		 dwidth * dheight );
+    glUniform4f( screenloc, dwidth / pixelSize, dheight / pixelSize, 
+		 10.0 * ( 1024.0 * 1024.0 ) / ( PARTICLE_COUNT * pixelSize ), 
+		 0 );
     glUniformMatrix4fv( smvploc, 1, GL_FALSE, mvp );
     
     glDispatchCompute( PARTICLE_GROUPS, 1, 1 );
@@ -350,7 +360,7 @@ int main( int argc, char* argv[] ){
     
     // Render quad.
     glUseProgram( bprg );
-    glUniform4f( bscreenloc, dwidth, dheight, 0, 0);
+    glUniform4f( bscreenloc, dwidth / pixelSize, dheight / pixelSize, pixelSize, 0);
     glBindVertexArray( screenQuadVao );
     glBindImageTexture( 4, texs[ 4 + nbsel / 2 ], 0, GL_FALSE, 0, 
 			GL_READ_WRITE, GL_R32UI );
