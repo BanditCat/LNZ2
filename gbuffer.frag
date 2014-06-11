@@ -58,6 +58,8 @@ void main(void) {
     ans.g = p;
     ans.b = q;
     break;
+  default:
+    ans.r = ans.g = ans.b = 1;
   }
   ans.a = 1;
 
