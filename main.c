@@ -15,6 +15,7 @@
 #define GBUFFER_SIZE ( GBUFFER_HEIGHT * GBUFFER_WIDTH )
 
 
+int movingWindow = 0;
 int fullscreen = 0;
 int dwidth, dheight;
 int pixelSize = 1;
@@ -42,15 +43,26 @@ void keys( const SDL_Event* ev ){
       blowup = 0;
     else
       blowup = 1;
+  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_m ){
+    movingWindow = 1;
+  } else if( ev->key.state == SDL_RELEASED && ev->key.keysym.sym == SDLK_m ){
+    movingWindow = 0;
+    int x, y;
+    SDL_GetWindowSize( mainWindow, &x, &y );
+    dwidth = x;
+    dheight = y;
+    glViewport( 0, 0, x, y );
   } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_SPACE ){
     if( scale )
       scale = 0;
     else
       scale = 1;
-  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_LEFTBRACKET ){
+  } else if( ev->key.state == SDL_PRESSED && 
+	     ev->key.keysym.sym == SDLK_LEFTBRACKET ){
     if( pixelSize > 1 )
       pixelSize--;
-  } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_RIGHTBRACKET ){
+  } else if( ev->key.state == SDL_PRESSED && 
+	     ev->key.keysym.sym == SDLK_RIGHTBRACKET ){
     if( pixelSize < 100 )
       pixelSize++;
   } else if( ev->key.state == SDL_PRESSED && ev->key.keysym.sym == SDLK_RETURN ){
@@ -67,9 +79,18 @@ void keys( const SDL_Event* ev ){
 void touches( const SDL_Event* ev ){
   disableMouseTime = SDL_GetPerformanceCounter();
   if( ev->tfinger.type == SDL_FINGERDOWN && ev->tfinger.x > 0.9 &&
-      ev->tfinger.y < 0.1 &&
-      SDL_GetNumTouchFingers( ev->tfinger.touchId ) == 1 )
-    exit( EXIT_SUCCESS );
+      ev->tfinger.y < 0.2 &&
+      SDL_GetNumTouchFingers( ev->tfinger.touchId ) == 1 ){
+    if( ev->tfinger.y < 0.1 )
+      exit( EXIT_SUCCESS );
+    else if( fullscreen ){
+      SDL_SetWindowFullscreen( mainWindow, 0 );
+      fullscreen = 0;
+    } else{
+      SDL_SetWindowFullscreen( mainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP );
+      fullscreen = 1;
+    }
+  }
   else if( ev->tfinger.type == SDL_FINGERDOWN && ev->tfinger.x < 0.1 &&
 	   ev->tfinger.y < 0.1 && 
 	   SDL_GetNumTouchFingers( ev->tfinger.touchId ) == 1 ){
@@ -124,7 +145,6 @@ void touches( const SDL_Event* ev ){
 }
 
 void wms( const SDL_Event* ev ){
-  disableMouseTime = SDL_GetPerformanceCounter();
   if( ev->window.event == SDL_WINDOWEVENT_RESIZED ){
     dwidth = ev->window.data1;
     dheight = ev->window.data2;
@@ -139,17 +159,48 @@ void mice( const SDL_Event* ev ){
       // window.
       abs( ev->motion.xrel ) < 20 &&
       abs( ev->motion.yrel ) < 20 ){
-    if( ev->motion.state & SDL_BUTTON_LMASK ){
-      trns[ 0 ] += ev->motion.xrel * 0.05;
-      trns[ 1 ] += ev->motion.yrel * -0.05;
-    } else if( ev->motion.state & SDL_BUTTON_RMASK ){
-      trns[ 2 ] += ev->motion.yrel * 0.2;
-    }else if( rel ){
-      drotx += ev->motion.xrel * 0.0005;
-      droty += ev->motion.yrel * 0.0005;
+    if( movingWindow ){
+      int x, y;
+      if( ev->motion.state & SDL_BUTTON_LMASK )
+	SDL_GetWindowSize( mainWindow, &x, &y );
+      else
+	SDL_GetWindowPosition( mainWindow, &x, &y );
+      x += ev->motion.xrel;
+      y += ev->motion.yrel;
+      if( ev->motion.state & SDL_BUTTON_LMASK ){
+	if( x < 64 )
+	  x = 64;
+	if( x > fullscreenDM.w )
+	  x = fullscreenDM.w;
+	if( y < 64 )
+	  y = 64;
+	if( y > fullscreenDM.h )
+	  y = fullscreenDM.h;
+	SDL_SetWindowSize( mainWindow, x, y );
+      } else{
+	if( x < 0 )
+	  x = 0;
+	if( x + 64 > fullscreenDM.w )
+	  x = fullscreenDM.w - 64;
+	if( y < 0 )
+	  y = 0;
+	if( y + 64 > fullscreenDM.h )
+	  y = fullscreenDM.h - 64;
+	SDL_SetWindowPosition( mainWindow, x, y );
+      }
     } else{
-      rotx += ev->motion.xrel * 0.0005;
-      roty += ev->motion.yrel * 0.0005;
+      if( ev->motion.state & SDL_BUTTON_LMASK ){
+	trns[ 0 ] += ev->motion.xrel * 0.05;
+	trns[ 1 ] += ev->motion.yrel * -0.05;
+      } else if( ev->motion.state & SDL_BUTTON_RMASK ){
+	trns[ 2 ] += ev->motion.yrel * 0.2;
+      }else if( rel ){
+	drotx += ev->motion.xrel * 0.0005;
+	droty += ev->motion.yrel * 0.0005;
+      } else{
+	rotx += ev->motion.xrel * 0.0005;
+	roty += ev->motion.yrel * 0.0005;
+      }
     }
   }
 }
@@ -333,7 +384,8 @@ int main( int argc, char* argv[] ){
     glBindImageTexture( 0, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0,
 			GL_WRITE_ONLY, GL_R32UI );
     glUniform1ui( gcountloc, ( dwidth / pixelSize ) * ( dheight / pixelSize ) );
-    glDispatchCompute( ( dwidth * dheight ) / 1024 + 1, 1, 1 );
+    glDispatchCompute( ( ( dwidth / pixelSize ) * ( dheight / pixelSize ) ) / 
+		       1024 + 1, 1, 1 );
 
      
     glUseProgram( prg );
