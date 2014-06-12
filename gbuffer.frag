@@ -12,8 +12,8 @@ uniform vec4 screen;
 void main(void) { 
   vec4 ans;
 
-  uint v = imageLoad( gbuffer, int( gl_FragCoord.x ) + 
-		      int( gl_FragCoord.y ) * int( screen.x ) ).x;
+  uint v = imageLoad( gbuffer, int( gl_FragCoord.x / screen.z ) + 
+		      int( gl_FragCoord.y / screen.z ) * int( screen.x ) ).x;
   uint hcount = v >> 24;
   uint hue = int( clamp( ( float( ( v >> 12 ) & 4095 ) / float( hcount ) ) * ( 4095.0 / 63.0 ), 0, 4095 ) );
   uint intensity = v & 4095; 

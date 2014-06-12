@@ -1,1 +1,1 @@
-LNZ2.0a Controllable particle count, movable windows, clear shader, text.
+LNZ2.0a Controllable particle count, movable windows, fat pixels, text.
