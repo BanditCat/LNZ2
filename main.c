@@ -20,7 +20,7 @@ int fullscreen = 0;
 int dwidth, dheight;
 int pixelSize = 1;
 float sfps = 30.0;
-float rotx = 0, roty = 0, drotx = 0, droty = 0;//`0.05, droty = 0.02;
+float rotx = 0, roty = 0, drotx = 0, droty = 0;
 int rel = 0;
 int blowup = 0;
 float scale = 1;
@@ -209,6 +209,8 @@ void mice( const SDL_Event* ev ){
 int main( int argc, char* argv[] ){
   (void)(argc);(void)(argv);
 
+  srand( SDL_GetPerformanceCounter() );
+
   LNZInit( fullscreen, "LNZ2.0a", 0.9, 0.675 );
   SDL_GL_GetDrawableSize( mainWindow, &dwidth, &dheight );
   SDL_GL_SetSwapInterval( 0 );
@@ -332,8 +334,8 @@ int main( int argc, char* argv[] ){
     }
     u64 ttime = ntime;
     ntime = SDL_GetPerformanceCounter();
-    float dtime = ( ntime - ttime ) / (double)SDL_GetPerformanceFrequency();
-    float udtime = dtime;
+    double dtime = ( ntime - ttime ) / (double)SDL_GetPerformanceFrequency();
+    double udtime = dtime;
     dtime *= (double)scale;
     time += 0.001 * dtime;
     if( dtime )
@@ -344,12 +346,12 @@ int main( int argc, char* argv[] ){
       (GLfloat*)glMapBuffer( GL_UNIFORM_BUFFER, GL_WRITE_ONLY );
 
     for( int i = 0; i < 64; i++ ){
-      attractors[ i * 4 + 0 ] =  sinf(time * (float)(i + 4) * 7.5f * 0.2f)
+      attractors[ i * 4 + 0 ] =  sin(time * (double)(i + 4) * 7.5 * 0.2)
       	* 50.0f;
-   attractors[ i * 4 + 1 ] = cosf(time * (float)(i + 7) * 3.9f * 0.2f)
+      attractors[ i * 4 + 1 ] = cos(time * (double)(i + 7) * 3.9 * 0.2)
       	* 50.0f;
-      attractors[ i * 4 + 2 ] = sinf(time * (float)(i + 3) * 5.3f * 0.2f)
-      	* cosf(time * (float)(i + 5) * 0.91f) * 100.0f;
+      attractors[ i * 4 + 2 ] = sin(time * (double)(i + 3) * 5.3 * 0.2)
+      	* cos(time * (double)(i + 5) * 0.91f) * 100.0f;
       attractors[ i * 4 + 3 ] = amasses[ i ] * 15.0;
     }
     if( blowup ){
