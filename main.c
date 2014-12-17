@@ -416,7 +416,7 @@ int main( int argc, char* argv[] ){
     glUseProgram( bprg );
     glUniform4f( bscreenloc, dwidth / pixelSize, dheight / pixelSize, pixelSize, 0);
     glBindVertexArray( screenQuadVao );
-    glBindImageTexture( 4, texs[ 4 + nbsel / 2 ], 0, GL_FALSE, 0, 
+    glBindImageTexture( 4, texs[ 4 + bsel / 2 ], 0, GL_FALSE, 0, 
 			GL_READ_WRITE, GL_R32UI );
     glDrawArrays( GL_TRIANGLE_FAN, 0, 4 );
 

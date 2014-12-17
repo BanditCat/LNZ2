@@ -7,9 +7,11 @@
 #ifndef LNZ_H
 #define LNZ_H
 
+
 #include "SDL.h"
 #define GLEW_STATIC
 #include "glew.h"
+#include <limits.h>
 
 // Types.
 typedef unsigned char u8;
@@ -24,7 +26,7 @@ typedef float f32;
 typedef double f64;
 
 // Types sanity check.
-#if CHAR_BIT != 8 
+#if CHAR_BIT != 8
 #error Alien build envioronment, check vislib.h for correct typedefs.
 #endif 
 #if INT_MAX != 2147483647 || INT_MIN != -2147483648
