@@ -14,7 +14,7 @@ layout( rgba32f, binding = 0 ) uniform imageBuffer vbuffer;
 layout( rgba32f, binding = 1 ) uniform imageBuffer pbuffer;
 layout( rgba32f, binding = 2 ) uniform imageBuffer vbuffer_out; 
 layout( rgba32f, binding = 3 ) uniform imageBuffer pbuffer_out;
-layout( r32ui, binding = 4 ) coherent uniform uimageBuffer gbuffer;
+layout( r32ui, binding = 4 ) uniform uimageBuffer gbuffer;
 
 
 // Time change per frame in seconds.
